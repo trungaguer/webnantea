@@ -1,0 +1,4 @@
+node_modules
+my_web/node_modules
+my_web_backend/node_modules
+.env
