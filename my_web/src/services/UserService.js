@@ -24,7 +24,6 @@ axiosJWT.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue = [];
 
-// xử lý queue
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
     if (error) prom.reject(error);
@@ -39,31 +38,35 @@ axiosJWT.interceptors.response.use(
     const originalRequest = error.config || {};
     const status = error?.response?.status;
 
-    // 🔥 FIX QUAN TRỌNG: không phụ thuộc code nữa
-    if (status === 401 && !originalRequest._retry) {
-      // tránh loop vô hạn
+    // ================= HANDLE TOKEN EXPIRED =================
+    if ((status === 401 || status === 403) && !originalRequest._retry) {
+      // tránh loop refresh
       if (originalRequest.url?.includes("/user/refresh-token")) {
         return Promise.reject(error);
       }
 
-      // nếu đang refresh → đưa request vào queue
+      originalRequest._retry = true;
+
+      // nếu đang refresh → queue lại request
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
             resolve: (token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              resolve(axiosJWT(originalRequest));
+              originalRequest.headers = {
+                ...originalRequest.headers,
+                Authorization: `Bearer ${token}`,
+              };
+              resolve(axiosJWT.request(originalRequest));
             },
-            reject: (err) => reject(err),
+            reject,
           });
         });
       }
 
-      originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // 🔥 gọi refresh token (dùng cookie)
+        // ================= REFRESH TOKEN =================
         const res = await axios.post(
           `${process.env.REACT_APP_API_URL}/user/refresh-token`,
           {},
@@ -82,17 +85,19 @@ axiosJWT.interceptors.response.use(
         // set default header
         axiosJWT.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
 
-        // xử lý queue
         processQueue(null, newAccessToken);
 
         // retry request cũ
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        originalRequest.headers = {
+          ...originalRequest.headers,
+          Authorization: `Bearer ${newAccessToken}`,
+        };
 
-        return axiosJWT(originalRequest);
+        return axiosJWT.request(originalRequest);
       } catch (err) {
         processQueue(err, null);
 
-        // logout sạch
+        // logout nếu refresh fail
         localStorage.clear();
         delete axiosJWT.defaults.headers.common.Authorization;
 
@@ -108,7 +113,7 @@ axiosJWT.interceptors.response.use(
   },
 );
 
-// ================= API =================
+// ================= AUTH API =================
 
 // LOGIN
 export const loginUser = async (data) => {
@@ -131,24 +136,43 @@ export const signupUser = async (data) => {
     `${process.env.REACT_APP_API_URL}/user/sign-up`,
     data,
   );
+
   return res.data;
 };
 
-// GET DETAILS
+// GET USER DETAILS
 export const getDetailsUser = async (id) => {
+  if (!id) throw new Error("User ID is undefined");
+
   const res = await axiosJWT.get(`/user/get-details/${id}`);
+
   return res.data;
 };
 
 // DELETE USER
 export const deleteUser = async (id) => {
   const res = await axiosJWT.delete(`/user/delete-user/${id}`);
+
   return res.data;
 };
 
 // GET ALL USER
 export const getAllUser = async () => {
   const res = await axiosJWT.get(`/user/getAll`);
+  return res.data;
+};
+
+// UPDATE USER
+export const updateUser = async (id, data) => {
+  const res = await axiosJWT.put(`/user/update-user/${id}`, data);
+
+  return res.data;
+};
+
+// DELETE MANY USER
+export const deleteManyUser = async (data) => {
+  const res = await axiosJWT.post(`/user/delete-many`, data);
+
   return res.data;
 };
 
@@ -163,17 +187,5 @@ export const logoutUser = async () => {
   localStorage.clear();
   delete axiosJWT.defaults.headers.common.Authorization;
 
-  return res.data;
-};
-
-// UPDATE USER
-export const updateUser = async (id, data) => {
-  const res = await axiosJWT.put(`/user/update-user/${id}`, data);
-  return res.data;
-};
-
-// DELETE MANY
-export const deleteManyUser = async (data) => {
-  const res = await axiosJWT.post(`/user/delete-many`, data);
   return res.data;
 };
