@@ -3,25 +3,28 @@ require("dotenv").config();
 
 // ================= GET TOKEN =================
 const getTokenFromRequest = (req) => {
-  if (req.cookies?.access_token) {
-    return req.cookies.access_token;
-  }
+  const cookieToken = req.cookies?.access_token;
 
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    return authHeader.split(" ")[1];
-  }
 
-  return null;
+  const bearerToken =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+  return cookieToken || bearerToken || null;
 };
 
 // ================= VERIFY TOKEN =================
 const verifyToken = (token) => {
-  return jwt.verify(token, process.env.ACCESS_TOKEN);
+  return jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+  // ⚠️ FIX: phải là ACCESS_TOKEN_SECRET (không phải ACCESS_TOKEN)
 };
 
 // ================= HANDLE ERROR =================
 const handleAuthError = (err, res) => {
+  console.error("JWT ERROR:", err.message);
+
   if (err.name === "TokenExpiredError") {
     return res.status(401).json({
       status: "ERR",
@@ -53,9 +56,9 @@ const authUserMiddleware = (req, res, next) => {
     const user = verifyToken(token);
 
     req.user = user;
-    return next(); // ✅ FIX: luôn return next()
+    return next();
   } catch (err) {
-    return handleAuthError(err, res); // giữ nguyên, không cần next ở đây
+    return handleAuthError(err, res);
   }
 };
 
@@ -74,7 +77,8 @@ const authAdminMiddleware = (req, res, next) => {
 
     const user = verifyToken(token);
 
-    if (!user?.isAdmin) {
+    // ⚠️ FIX: an toàn hơn check role
+    if (!user || user.role !== "admin") {
       return res.status(403).json({
         status: "ERR",
         code: "NOT_ADMIN",
@@ -83,7 +87,7 @@ const authAdminMiddleware = (req, res, next) => {
     }
 
     req.user = user;
-    return next(); // ✅ FIX
+    return next();
   } catch (err) {
     return handleAuthError(err, res);
   }
@@ -103,12 +107,11 @@ const authOwnerMiddleware = (req, res, next) => {
     }
 
     const user = verifyToken(token);
-
     const userId = req.params.id;
 
-    if (user?.isAdmin || String(user?.id) === String(userId)) {
+    if (user?.role === "admin" || String(user?.id) === String(userId)) {
       req.user = user;
-      return next(); // ✅ đã đúng, giữ nguyên
+      return next();
     }
 
     return res.status(403).json({
