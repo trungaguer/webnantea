@@ -49,6 +49,9 @@ const AdminRevenue = () => {
   const [year, setYear] = useState(dayjs().year());
   const [range, setRange] = useState(null);
 
+  // ================= BASE API FIX =================
+  const API_URL = process.env.REACT_APP_API_URL;
+
   // ================= FORMAT =================
   const formatMoney = (value) => (value || 0).toLocaleString("vi-VN") + " VND";
 
@@ -60,28 +63,30 @@ const AdminRevenue = () => {
     try {
       let query = `?year=${year}`;
 
-      if (range) {
+      // ⚠️ giữ range nhưng an toàn backend
+      if (range && Array.isArray(range)) {
         query += `&from=${range[0]}&to=${range[1]}`;
       }
 
       const [resTotal, resMonth, resDay, resProduct] = await Promise.all([
-        axios.get(`/api/order/revenue${query}`),
-        axios.get(`/api/order/revenue/month${query}`),
-        axios.get(`/api/order/revenue/day${query}`),
-        axios.get(`/api/order/product/day${query}`),
+        axios.get(`${API_URL}/order/revenue${query}`),
+        axios.get(`${API_URL}/order/revenue/month${query}`),
+        axios.get(`${API_URL}/order/revenue/day${query}`),
+        axios.get(`${API_URL}/order/product/day${query}`),
       ]);
 
-      setTotal(resTotal.data.data || {});
-      setDataMonth(resMonth.data.data || []);
-      setDataDay(resDay.data.data || []);
-      setProductDay(resProduct.data.data || []);
+      // ================= FIX RESPONSE SAFETY =================
+      setTotal(resTotal.data?.data || resTotal.data || {});
+      setDataMonth(resMonth.data?.data || resMonth.data || []);
+      setDataDay(resDay.data?.data || resDay.data || []);
+      setProductDay(resProduct.data?.data || resProduct.data || []);
     } catch (err) {
       console.error(err);
       message.error("Lỗi tải dữ liệu");
     } finally {
       setLoading(false);
     }
-  }, [year, range]);
+  }, [year, range, API_URL]);
 
   useEffect(() => {
     fetchRevenue();
@@ -135,20 +140,14 @@ const AdminRevenue = () => {
 
   // ================= TABLE =================
   const columnsMonth = [
-    {
-      title: "Tháng",
-      dataIndex: "_id",
-    },
+    { title: "Tháng", dataIndex: "_id" },
     {
       title: "Doanh thu",
       dataIndex: "revenue",
       render: formatMoney,
       sorter: (a, b) => a.revenue - b.revenue,
     },
-    {
-      title: "Số đơn",
-      dataIndex: "orders",
-    },
+    { title: "Số đơn", dataIndex: "orders" },
   ];
 
   const columnsDay = [
@@ -161,10 +160,7 @@ const AdminRevenue = () => {
       dataIndex: "revenue",
       render: formatMoney,
     },
-    {
-      title: "Số đơn",
-      dataIndex: "orders",
-    },
+    { title: "Số đơn", dataIndex: "orders" },
   ];
 
   const columnsProduct = [
