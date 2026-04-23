@@ -354,7 +354,7 @@ const getRevenue = async (req, res) => {
 
     return res.status(200).json({
       status: "OK",
-      data,
+      data: data || { totalRevenue: 0, totalOrders: 0 },
     });
   } catch (e) {
     return res.status(500).json({
