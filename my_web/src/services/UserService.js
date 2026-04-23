@@ -9,10 +9,10 @@ export const axiosJWT = axios.create({
 // ================= REQUEST INTERCEPTOR =================
 axiosJWT.interceptors.request.use(
   (config) => {
-    const access_token = localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
 
-    if (access_token) {
-      config.headers.Authorization = `Bearer ${access_token}`;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
     return config;
@@ -29,6 +29,7 @@ const processQueue = (error, token = null) => {
     if (error) prom.reject(error);
     else prom.resolve(token);
   });
+
   failedQueue = [];
 };
 
@@ -38,16 +39,14 @@ axiosJWT.interceptors.response.use(
     const originalRequest = error.config || {};
     const status = error?.response?.status;
 
-    // ================= HANDLE TOKEN EXPIRED =================
+    // ================= FIX QUAN TRỌNG =================
     if ((status === 401 || status === 403) && !originalRequest._retry) {
-      // tránh loop refresh
       if (originalRequest.url?.includes("/user/refresh-token")) {
         return Promise.reject(error);
       }
 
       originalRequest._retry = true;
 
-      // nếu đang refresh → queue lại request
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
@@ -56,6 +55,7 @@ axiosJWT.interceptors.response.use(
                 ...originalRequest.headers,
                 Authorization: `Bearer ${token}`,
               };
+
               resolve(axiosJWT.request(originalRequest));
             },
             reject,
@@ -73,31 +73,27 @@ axiosJWT.interceptors.response.use(
           { withCredentials: true },
         );
 
-        const newAccessToken = res.data?.access_token;
+        const newToken = res.data?.access_token;
 
-        if (!newAccessToken) {
+        if (!newToken) {
           throw new Error("No access token returned");
         }
 
-        // lưu token mới
-        localStorage.setItem("access_token", newAccessToken);
+        localStorage.setItem("access_token", newToken);
 
-        // set default header
-        axiosJWT.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
+        axiosJWT.defaults.headers.common.Authorization = `Bearer ${newToken}`;
 
-        processQueue(null, newAccessToken);
+        processQueue(null, newToken);
 
-        // retry request cũ
         originalRequest.headers = {
           ...originalRequest.headers,
-          Authorization: `Bearer ${newAccessToken}`,
+          Authorization: `Bearer ${newToken}`,
         };
 
         return axiosJWT.request(originalRequest);
       } catch (err) {
         processQueue(err, null);
 
-        // logout nếu refresh fail
         localStorage.clear();
         delete axiosJWT.defaults.headers.common.Authorization;
 
@@ -113,7 +109,7 @@ axiosJWT.interceptors.response.use(
   },
 );
 
-// ================= AUTH API =================
+// ================= API =================
 
 // LOGIN
 export const loginUser = async (data) => {
@@ -140,36 +136,38 @@ export const signupUser = async (data) => {
   return res.data;
 };
 
-// GET USER DETAILS
+// GET DETAILS
 export const getDetailsUser = async (id) => {
-  if (!id) throw new Error("User ID is undefined");
+  if (!id) {
+    throw new Error("User ID is undefined");
+  }
 
   const res = await axiosJWT.get(`/user/get-details/${id}`);
 
   return res.data;
 };
 
-// DELETE USER
+// DELETE
 export const deleteUser = async (id) => {
   const res = await axiosJWT.delete(`/user/delete-user/${id}`);
 
   return res.data;
 };
 
-// GET ALL USER
+// GET ALL
 export const getAllUser = async () => {
   const res = await axiosJWT.get(`/user/getAll`);
   return res.data;
 };
 
-// UPDATE USER
+// UPDATE
 export const updateUser = async (id, data) => {
   const res = await axiosJWT.put(`/user/update-user/${id}`, data);
 
   return res.data;
 };
 
-// DELETE MANY USER
+// DELETE MANY
 export const deleteManyUser = async (data) => {
   const res = await axiosJWT.post(`/user/delete-many`, data);
 
