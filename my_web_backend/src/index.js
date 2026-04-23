@@ -18,7 +18,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://webnantea-3yrf.vercel.app",
+      "https://webnantea-3b49.vercel.app",
       /\.vercel\.app$/,
     ],
     credentials: true,
