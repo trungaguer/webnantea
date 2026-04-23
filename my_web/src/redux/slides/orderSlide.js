@@ -2,24 +2,28 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 // ================= AXIOS CONFIG =================
-const API = "http://localhost:3001/api/order";
+const API = process.env.REACT_APP_API_URL
+  ? `${process.env.REACT_APP_API_URL}/order`
+  : "http://localhost:3001/api/order";
 
 // helper lấy token
 const getToken = () => localStorage.getItem("access_token");
+
+// helper lấy userId
+const getUserId = () => localStorage.getItem("user_id");
 
 // ================= FETCH ORDERS =================
 export const fetchOrdersAsync = createAsyncThunk(
   "order/fetchOrders",
   async (_, { rejectWithValue }) => {
     try {
-      const userId = localStorage.getItem("user_id");
+      const userId = getUserId();
       const token = getToken();
 
       if (!token) throw new Error("Missing access token");
+      if (!userId) throw new Error("Missing userId");
 
-      const url = userId ? `${API}/my-orders/${userId}` : `${API}/my-orders`;
-
-      const res = await axios.get(url, {
+      const res = await axios.get(`${API}/my-orders/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -39,6 +43,8 @@ export const cancelOrderAsync = createAsyncThunk(
     try {
       const token = getToken();
 
+      if (!token) throw new Error("Missing access token");
+
       const res = await axios.put(
         `${API}/cancel/${orderId}`,
         {},
@@ -56,12 +62,14 @@ export const cancelOrderAsync = createAsyncThunk(
   },
 );
 
-// ================= UPDATE ORDER (REPLACE EDIT) =================
+// ================= UPDATE ORDER =================
 export const updateOrderAsync = createAsyncThunk(
   "order/updateOrder",
   async ({ orderId, data }, { rejectWithValue }) => {
     try {
       const token = getToken();
+
+      if (!token) throw new Error("Missing access token");
 
       const res = await axios.put(`${API}/update/${orderId}`, data, {
         headers: {
@@ -101,7 +109,7 @@ const orderSlice = createSlice({
 
         const data = action.payload;
 
-        state.orders = data?.data || data?.orders || data || [];
+        state.orders = data?.data || data?.orders || [];
       })
 
       .addCase(fetchOrdersAsync.rejected, (state, action) => {
@@ -113,6 +121,8 @@ const orderSlice = createSlice({
       .addCase(cancelOrderAsync.fulfilled, (state, action) => {
         const updated = action.payload?.data || action.payload;
 
+        if (!updated?._id) return;
+
         const index = state.orders.findIndex((o) => o._id === updated._id);
 
         if (index !== -1) {
@@ -123,6 +133,8 @@ const orderSlice = createSlice({
       // ================= UPDATE =================
       .addCase(updateOrderAsync.fulfilled, (state, action) => {
         const updated = action.payload?.data || action.payload;
+
+        if (!updated?._id) return;
 
         const index = state.orders.findIndex((o) => o._id === updated._id);
 
