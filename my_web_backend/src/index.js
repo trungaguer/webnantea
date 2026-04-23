@@ -16,7 +16,11 @@ const port = process.env.PORT || 3001;
 // ✅ CORS
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://webnantea-3b49.vercel.app"],
+    origin: [
+      "http://localhost:3000",
+      "https://webnantea-3yrf.vercel.app",
+      /\.vercel\.app$/,
+    ],
     credentials: true,
   }),
 );
