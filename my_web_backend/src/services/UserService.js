@@ -73,9 +73,9 @@ const loginUser = async (userLogin) => {
       };
     }
 
-    // ================= FIX QUAN TRỌNG =================
+    // ================= FIX CHÍNH =================
     const payload = {
-      id: checkUser._id, // ✔ FIX: dùng _id đồng bộ toàn hệ thống
+      id: checkUser._id, // ✔ QUAN TRỌNG NHẤT
       isAdmin: checkUser.isAdmin,
     };
 
@@ -88,6 +88,12 @@ const loginUser = async (userLogin) => {
       message: "SUCCESS",
       access_token,
       refresh_token,
+      user: {
+        id: checkUser._id,
+        name: checkUser.name,
+        email: checkUser.email,
+        isAdmin: checkUser.isAdmin,
+      }, // ✔ thêm user để FE khỏi bị "không có dữ liệu"
     };
   } catch (e) {
     throw e;
