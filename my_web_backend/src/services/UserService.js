@@ -1,16 +1,23 @@
 const User = require("../models/UserModel");
 const bcrypt = require("bcrypt");
 
+const {
+  genneralAccessToken,
+  genneralRefreshToken,
+} = require("../services/JwtService");
+
+// ================= CREATE USER =================
 const createUser = (newUser) => {
   return new Promise(async (resolve, reject) => {
-    const { name, email, password, confirmPassword, phone } = newUser;
     try {
+      const { name, email, password, confirmPassword, phone } = newUser;
+
       const checkUser = await User.findOne({ email });
 
-      if (checkUser !== null) {
+      if (checkUser) {
         return resolve({
           status: "ERR",
-          message: "The email is already in use",
+          message: "Email already exists",
         });
       }
 
@@ -21,7 +28,6 @@ const createUser = (newUser) => {
         });
       }
 
-      // ✅ hash async (tốt hơn sync)
       const hash = await bcrypt.hash(password, 10);
 
       const createdUser = await User.create({
@@ -31,7 +37,6 @@ const createUser = (newUser) => {
         phone,
       });
 
-      // ❌ không trả password ra ngoài
       const { password: _, ...userWithoutPassword } = createdUser._doc;
 
       return resolve({
@@ -45,11 +50,7 @@ const createUser = (newUser) => {
   });
 };
 
-const {
-  genneralAccessToken,
-  genneralRefreshToken,
-} = require("../services/JwtService");
-
+// ================= LOGIN USER =================
 const loginUser = async (userLogin) => {
   const { email, password } = userLogin;
 
@@ -59,29 +60,28 @@ const loginUser = async (userLogin) => {
     if (!checkUser) {
       return {
         status: "ERR",
-        message: "The user is not defined",
+        message: "User not found",
       };
     }
 
-    // ✅ dùng async
-    const comparePassword = await bcrypt.compare(password, checkUser.password);
+    const isMatch = await bcrypt.compare(password, checkUser.password);
 
-    if (!comparePassword) {
+    if (!isMatch) {
       return {
         status: "ERR",
-        message: "The password or user is incorrect",
+        message: "Wrong password",
       };
     }
 
-    const access_token = await genneralAccessToken({
-      id: checkUser.id,
+    // ================= FIX QUAN TRỌNG =================
+    const payload = {
+      id: checkUser._id, // ✔ FIX: dùng _id đồng bộ toàn hệ thống
       isAdmin: checkUser.isAdmin,
-    });
+    };
 
-    const refresh_token = await genneralRefreshToken({
-      id: checkUser.id,
-      isAdmin: checkUser.isAdmin,
-    });
+    const access_token = await genneralAccessToken(payload);
+
+    const refresh_token = await genneralRefreshToken(payload);
 
     return {
       status: "OK",
@@ -94,19 +94,19 @@ const loginUser = async (userLogin) => {
   }
 };
 
+// ================= UPDATE USER =================
 const updateUser = (id, data) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkUser = await User.findOne({ _id: id });
+      const user = await User.findById(id);
 
-      if (checkUser === null) {
+      if (!user) {
         return resolve({
           status: "ERR",
-          message: "The user is not defined",
+          message: "User not found",
         });
       }
 
-      // ✅ nếu update password → hash lại
       if (data.password) {
         data.password = await bcrypt.hash(data.password, 10);
       }
@@ -128,15 +128,16 @@ const updateUser = (id, data) => {
   });
 };
 
+// ================= DELETE USER =================
 const deleteUser = (id) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkUser = await User.findOne({ _id: id });
+      const user = await User.findById(id);
 
-      if (checkUser === null) {
+      if (!user) {
         return resolve({
           status: "ERR",
-          message: "The user is not defined",
+          message: "User not found",
         });
       }
 
@@ -144,7 +145,7 @@ const deleteUser = (id) => {
 
       return resolve({
         status: "OK",
-        message: "Delete user success",
+        message: "Delete success",
       });
     } catch (e) {
       reject(e);
@@ -152,10 +153,10 @@ const deleteUser = (id) => {
   });
 };
 
+// ================= GET ALL =================
 const getAllUser = () => {
   return new Promise(async (resolve, reject) => {
     try {
-      // ❌ không trả password
       const users = await User.find().select("-password");
 
       return resolve({
@@ -169,15 +170,23 @@ const getAllUser = () => {
   });
 };
 
+// ================= GET DETAILS =================
 const getDetailsUser = (id) => {
   return new Promise(async (resolve, reject) => {
     try {
+      if (!id) {
+        return resolve({
+          status: "ERR",
+          message: "Missing user id",
+        });
+      }
+
       const user = await User.findById(id).select("-password");
 
       if (!user) {
         return resolve({
           status: "ERR",
-          message: "The user is not defined",
+          message: "User not found",
         });
       }
 

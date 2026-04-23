@@ -1,26 +1,26 @@
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-//  ACCESS TOKEN (short-lived)
+// ================= ACCESS TOKEN =================
 const genneralAccessToken = async (payload) => {
   return jwt.sign(
     {
       ...payload,
-      tokenType: "access", // giữ token type
+      tokenType: "access",
     },
     process.env.ACCESS_TOKEN,
     {
-      expiresIn: "15m", // tăng thời gian để tránh 401 nhanh
+      expiresIn: "15m",
     },
   );
 };
 
-//  REFRESH TOKEN (long-lived)
+// ================= REFRESH TOKEN =================
 const genneralRefreshToken = async (payload) => {
   return jwt.sign(
     {
       ...payload,
-      tokenType: "refresh", //  giữ token type
+      tokenType: "refresh",
     },
     process.env.REFRESH_TOKEN,
     {
@@ -29,42 +29,39 @@ const genneralRefreshToken = async (payload) => {
   );
 };
 
-//  REFRESH TOKEN SERVICE
+// ================= REFRESH TOKEN SERVICE =================
 const refreshTokenJwtService = (token) => {
   return new Promise((resolve, reject) => {
     try {
-      jwt.verify(token, process.env.REFRESH_TOKEN, async (err, user) => {
+      jwt.verify(token, process.env.REFRESH_TOKEN, async (err, decoded) => {
         if (err) {
-          console.log("Refresh token verify error:", err); // 🔹 log để debug
-          // 🔥 phân loại lỗi rõ ràng
-          if (err.name === "TokenExpiredError") {
-            return resolve({
-              status: "ERR",
-              message: "Refresh token expired",
-            });
-          }
+          console.log("Refresh token error:", err);
 
           return resolve({
             status: "ERR",
-            message: "Invalid refresh token",
+            message:
+              err.name === "TokenExpiredError"
+                ? "Refresh token expired"
+                : "Invalid refresh token",
           });
         }
 
-        //  check loại token
-        if (user.tokenType !== "refresh") {
+        // check token type
+        if (!decoded || decoded.tokenType !== "refresh") {
           return resolve({
             status: "ERR",
             message: "Invalid token type",
           });
         }
 
-        // tạo access token mới
+        // ================= FIX CHÍNH =================
+        // dùng decoded (KHÔNG dùng checkUser ❌)
         const access_token = await genneralAccessToken({
-          id: user.id,
-          isAdmin: user.isAdmin,
+          id: decoded.id, // ✔ FIX QUAN TRỌNG
+          isAdmin: decoded.isAdmin,
         });
 
-        console.log("New access token generated for user:", user.id);
+        console.log("New access token generated for user:", decoded.id);
 
         return resolve({
           status: "OK",
